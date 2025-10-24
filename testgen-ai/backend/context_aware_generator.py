@@ -266,11 +266,19 @@ class ContextAwareTestGenerator:
                 try:
                     credentials = json.loads(integration.encrypted_credentials)
                     api_key = credentials.get("api_key")
+                    base_url = credentials.get("base_url")
                     if api_key:
                         # Initialize OpenAI client with minimal parameters
                         try:
-                            # Initialize OpenAI client
-                            self.openai_client = openai.AsyncOpenAI(api_key=api_key)
+                            # Initialize OpenAI client with custom base URL if provided
+                            if base_url:
+                                print(f"🌐 Using custom OpenAI base URL: {base_url}")
+                                self.openai_client = openai.AsyncOpenAI(
+                                    api_key=api_key,
+                                    base_url=base_url
+                                )
+                            else:
+                                self.openai_client = openai.AsyncOpenAI(api_key=api_key)
                             print("✅ OpenAI client initialized from integration")
                         except Exception as init_error:
                             print(f"❌ OpenAI client initialization failed: {init_error}")
@@ -285,8 +293,17 @@ class ContextAwareTestGenerator:
                 try:
                     credentials = json.loads(integration.encrypted_credentials)
                     api_key = credentials.get("api_key")
+                    base_url = credentials.get("base_url")
                     if api_key:
-                        self.anthropic_client = Anthropic(api_key=api_key)
+                        # Initialize Anthropic client with custom base URL if provided
+                        if base_url:
+                            print(f"🌐 Using custom Anthropic base URL: {base_url}")
+                            self.anthropic_client = Anthropic(
+                                api_key=api_key,
+                                base_url=base_url
+                            )
+                        else:
+                            self.anthropic_client = Anthropic(api_key=api_key)
                         print("✅ Anthropic client initialized from integration")
                 except Exception as e:
                     print(f"❌ Failed to initialize Anthropic client: {e}")
@@ -347,7 +364,7 @@ class ContextAwareTestGenerator:
             generated_content = self._generate_mock_content(feature_name, context, config)
         
         # Parse and structure the generated content
-        test_files = self._parse_generated_content(generated_content, feature_name)
+        test_files = self._parse_generated_content(generated_content, feature_name, context)
         
         return test_files
     
@@ -712,7 +729,7 @@ Generate comprehensive, production-ready test cases that cover all the requireme
         except Exception as e:
             raise Exception(f"Anthropic generation failed: {str(e)}")
     
-    def _parse_generated_content(self, content: str, feature_name: str) -> Dict[str, str]:
+    def _parse_generated_content(self, content: str, feature_name: str, context: Dict[str, Any]) -> Dict[str, str]:
         """Parse generated content into structured files"""
         
         files = {}
@@ -757,11 +774,11 @@ Generate comprehensive, production-ready test cases that cover all the requireme
         
         # If no structured files found, create default structure
         if not files:
-            files = self._create_default_test_structure(feature_name, content)
+            files = self._create_default_test_structure(feature_name, content, context)
         
         return files
     
-    def _create_default_test_structure(self, feature_name: str, content: str) -> Dict[str, str]:
+    def _create_default_test_structure(self, feature_name: str, content: str, context: Dict[str, Any]) -> Dict[str, str]:
         """Create default test structure if parsing fails"""
         
         # Clean feature name for file names
@@ -897,61 +914,460 @@ public class BasePage {
 }"""
     
     def _get_default_step_definitions(self, feature_name: str) -> str:
-        return f"""package com.testgen.stepdefinitions;
+        class_name = ''.join(word.title() for word in feature_name.split('_'))
+        feature_lower = feature_name.lower()
+        
+        # Check if it's a search feature
+        if 'search' in feature_lower:
+            search_term = ' '.join([word for word in feature_name.split('_') if word.lower() not in ['search', 'for', 'a', 'an', 'the']])
+            if not search_term:
+                search_term = "items"
+                
+            return f"""package com.testgen.stepdefinitions;
 
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.When;
 import io.cucumber.java.en.Then;
 import io.cucumber.java.en.And;
 import org.junit.Assert;
+import org.openqa.selenium.By;
+import org.openqa.selenium.Keys;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import java.time.Duration;
 
-public class {feature_name.title().replace('_', '')}Steps {{
+public class {class_name}Steps {{
     
-    @Given("I am on the application homepage")
-    public void i_am_on_the_application_homepage() {{
-        // Implementation for navigating to homepage
+    private WebDriver driver;
+    private WebDriverWait wait;
+    private long startTime;
+    
+    @Given("I navigate to {{string}}")
+    public void i_navigate_to(String url) {{
+        driver.get(url);
     }}
     
-    @When("I perform the main action")
-    public void i_perform_the_main_action() {{
-        // Implementation for main action
+    @And("I wait for the search box to be visible")
+    public void i_wait_for_search_box() {{
+        wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("q")));
     }}
     
-    @Then("I should see the expected result")
-    public void i_should_see_the_expected_result() {{
-        // Implementation for verification
-        Assert.assertTrue("Expected result not found", true);
+    @When("I enter {{string}} in the Google search box")
+    public void i_enter_search_term(String searchTerm) {{
+        WebElement searchBox = driver.findElement(By.name("q"));
+        searchBox.clear();
+        searchBox.sendKeys(searchTerm);
+    }}
+    
+    @And("I press Enter or click the Google Search button")
+    public void i_click_search_button() {{
+        WebElement searchBox = driver.findElement(By.name("q"));
+        searchBox.sendKeys(Keys.ENTER);
+    }}
+    
+    @And("I click the Google Search button")
+    public void i_click_google_search_button() {{
+        WebElement searchButton = driver.findElement(By.name("btnK"));
+        searchButton.click();
+    }}
+    
+    @Then("I should see search results for {{string}}")
+    public void i_should_see_search_results(String searchTerm) {{
+        wait.until(ExpectedConditions.presenceOfElementLocated(By.id("search")));
+        String pageSource = driver.getPageSource();
+        Assert.assertTrue("Search results not found for: " + searchTerm, 
+            pageSource.contains(searchTerm) || !driver.findElements(By.cssSelector("#search .g")).isEmpty());
+    }}
+    
+    @And("the results should contain relevant links")
+    public void results_contain_links() {{
+        Assert.assertTrue("No search result links found", 
+            driver.findElements(By.cssSelector("#search .g a")).size() > 0);
+    }}
+    
+    @And("the search query should be displayed in the search box")
+    public void search_query_displayed() {{
+        WebElement searchBox = driver.findElement(By.name("q"));
+        Assert.assertFalse("Search box is empty", searchBox.getAttribute("value").isEmpty());
+    }}
+    
+    @When("I start typing {{string}} in the Google search box")
+    public void i_start_typing(String partialText) {{
+        WebElement searchBox = driver.findElement(By.name("q"));
+        searchBox.clear();
+        searchBox.sendKeys(partialText);
+    }}
+    
+    @Then("I should see search suggestions dropdown")
+    public void i_should_see_suggestions() {{
+        wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(".suggestions, [role='listbox']")));
+        Assert.assertTrue("Suggestions dropdown not visible", 
+            driver.findElements(By.cssSelector(".suggestions, [role='listbox']")).size() > 0);
+    }}
+    
+    @And("the suggestions should be related to {{string}}")
+    public void suggestions_related_to(String searchTerm) {{
+        // Verify suggestions are present
+        Assert.assertTrue("No suggestions found", 
+            driver.findElements(By.cssSelector("[role='option']")).size() > 0);
+    }}
+    
+    @And("results should contain keywords {{string}}, {{string}}, and {{string}}")
+    public void results_contain_keywords(String keyword1, String keyword2, String keyword3) {{
+        String pageContent = driver.findElement(By.id("search")).getText().toLowerCase();
+        Assert.assertTrue("Keyword not found: " + keyword1, pageContent.contains(keyword1.toLowerCase()));
+    }}
+    
+    @When("I click on the {{string}} button at the bottom")
+    public void i_click_next_button(String buttonText) {{
+        WebElement nextButton = driver.findElement(By.linkText(buttonText));
+        nextButton.click();
+    }}
+    
+    @Then("I should see the second page of results")
+    public void i_see_second_page() {{
+        wait.until(ExpectedConditions.presenceOfElementLocated(By.id("search")));
+        Assert.assertTrue("Not on second page", driver.findElements(By.id("search")).size() > 0);
+    }}
+    
+    @And("the URL should contain {{string}}")
+    public void url_contains(String text) {{
+        Assert.assertTrue("URL does not contain: " + text, driver.getCurrentUrl().contains(text));
+    }}
+    
+    @When("I click on the {{string}} tab")
+    public void i_click_tab(String tabName) {{
+        WebElement tab = driver.findElement(By.linkText(tabName));
+        tab.click();
+    }}
+    
+    @Then("I should see image results for {{string}}")
+    public void i_see_image_results(String searchTerm) {{
+        wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector("[data-ri]")));
+        Assert.assertTrue("Image results not found", 
+            driver.findElements(By.cssSelector("[data-ri]")).size() > 0);
+    }}
+    
+    @And("I note the current time")
+    public void note_current_time() {{
+        startTime = System.currentTimeMillis();
+    }}
+    
+    @Then("search results should load within {{int}} seconds")
+    public void results_load_within_seconds(int seconds) {{
+        long endTime = System.currentTimeMillis();
+        long loadTime = (endTime - startTime) / 1000;
+        Assert.assertTrue("Page load time exceeded: " + loadTime + "s", loadTime <= seconds);
+    }}
+    
+    @And("the page should display the number of results found")
+    public void page_displays_result_count() {{
+        WebElement resultStats = driver.findElement(By.id("result-stats"));
+        Assert.assertFalse("Result stats not displayed", resultStats.getText().isEmpty());
+    }}
+    
+    @And("the page should not display any error")
+    public void no_error_displayed() {{
+        Assert.assertFalse("Error page displayed", 
+            driver.getPageSource().toLowerCase().contains("error") && 
+            driver.getPageSource().toLowerCase().contains("404"));
+    }}
+}}"""
+        
+        # Generic step definitions for non-search features
+        else:
+            return f"""package com.testgen.stepdefinitions;
+
+import io.cucumber.java.en.Given;
+import io.cucumber.java.en.When;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.And;
+import org.junit.Assert;
+import org.openqa.selenium.WebDriver;
+
+public class {class_name}Steps {{
+    
+    private WebDriver driver;
+    
+    @Given("I navigate to {{string}}")
+    public void i_navigate_to(String url) {{
+        driver.get(url);
+    }}
+    
+    @And("the page loads successfully")
+    public void page_loads_successfully() {{
+        Assert.assertNotNull("Driver not initialized", driver);
+        Assert.assertTrue("Page title is empty", !driver.getTitle().isEmpty());
+    }}
+    
+    @When("I interact with the {feature_name.replace('_', ' ')} feature")
+    public void i_interact_with_feature() {{
+        // TODO: Implement feature interaction
+    }}
+    
+    @And("I provide valid input data")
+    public void i_provide_valid_input() {{
+        // TODO: Implement valid input
+    }}
+    
+    @And("I submit the form")
+    public void i_submit_form() {{
+        // TODO: Implement form submission
+    }}
+    
+    @Then("the action should complete successfully")
+    public void action_completes_successfully() {{
+        // TODO: Implement success verification
+        Assert.assertTrue("Action did not complete", true);
+    }}
+    
+    @And("I should see a confirmation message")
+    public void i_see_confirmation() {{
+        // TODO: Verify confirmation message
     }}
 }}"""
     
     def _get_default_feature_file(self, feature_name: str, content: str, context: Dict[str, Any] = None) -> str:
-        # Extract URL from context if available
-        base_url = "the application homepage"
+        # Extract URL and analyze feature name for context-aware scenarios
+        base_url = "https://example.com"
+        page_title = "the application"
+        
         if context and context.get("context_sources"):
             for source in context["context_sources"]:
                 if source.get("type") == "url" and source.get("extracted", {}).get("url"):
-                    url = source["extracted"]["url"]
-                    title = source["extracted"].get("title", "")
-                    base_url = f"the {title} page at {url}" if title else f"the page at {url}"
+                    base_url = source["extracted"]["url"]
+                    page_title = source["extracted"].get("title", "the application")
                     break
+        
+        # Analyze feature name to generate intelligent scenarios
+        feature_lower = feature_name.lower()
+        scenarios = self._generate_intelligent_scenarios(feature_name, feature_lower, base_url, page_title)
         
         return f"""Feature: {feature_name.replace('_', ' ').title()}
   As a user
-  I want to test the {feature_name.replace('_', ' ')} functionality
-  So that I can ensure it works correctly
+  I want to {feature_name.replace('_', ' ').lower()}
+  So that I can find relevant results
 
-  Scenario: Basic functionality test
-    Given I am on {base_url}
-    When I perform the main action
-    Then I should see the expected result
+{scenarios}
+"""
+    
+    def _generate_intelligent_scenarios(self, feature_name: str, feature_lower: str, base_url: str, page_title: str) -> str:
+        """Generate context-aware test scenarios based on feature name and URL"""
+        
+        # Check if it's a search-related feature
+        if 'search' in feature_lower:
+            search_term = ' '.join([word for word in feature_name.split('_') if word.lower() not in ['search', 'for', 'a', 'an', 'the']])
+            if not search_term:
+                search_term = "items"
+            
+            # Special handling for Google
+            if 'google' in base_url.lower():
+                return f"""  Background:
+    Given I navigate to "{base_url}"
+    And I wait for the search box to be visible
 
-  Scenario: Error handling test
-    Given I am on {base_url}
-    When I perform an invalid action
-    Then I should see an error message
+  @smoke @search
+  Scenario: Search for {search_term} with valid query
+    When I enter "{search_term}" in the Google search box
+    And I press Enter or click the Google Search button
+    Then I should see search results for "{search_term}"
+    And the results should contain relevant links
+    And the search query should be displayed in the search box
 
-  # Generated based on context:
-  # {content[:200]}..."""
+  @search
+  Scenario: Verify search suggestions for {search_term}
+    When I start typing "{search_term[:5] if len(search_term) > 5 else search_term}" in the Google search box
+    Then I should see search suggestions dropdown
+    And the suggestions should be related to "{search_term}"
+
+  @search
+  Scenario: Search with multiple keywords
+    When I enter "{search_term} best price 2024" in the Google search box
+    And I click the Google Search button
+    Then I should see search results
+    And results should contain keywords "{search_term}", "price", and "2024"
+
+  @search @negative
+  Scenario: Search with special characters
+    When I enter "{search_term} @#$%^&*()" in the Google search box
+    And I click the Google Search button
+    Then I should see search results or "no special results" message
+    And the page should not display any error
+
+  @search @navigation
+  Scenario: Navigate through search result pages
+    When I enter "{search_term}" in the Google search box
+    And I click the Google Search button
+    Then I should see search results for "{search_term}"
+    When I click on the "Next" button at the bottom
+    Then I should see the second page of results
+    And the URL should contain "start=10"
+
+  @search @filters
+  Scenario: Search and apply filters
+    When I enter "{search_term}" in the Google search box
+    And I click the Google Search button
+    Then I should see search results for "{search_term}"
+    When I click on the "Images" tab
+    Then I should see image results for "{search_term}"
+    And the URL should contain "tbm=isch"
+
+  @search @performance
+  Scenario: Verify search results load time
+    When I enter "{search_term}" in the Google search box
+    And I note the current time
+    And I click the Google Search button
+    Then search results should load within 3 seconds
+    And the page should display the number of results found"""
+            
+            # Generic search scenarios for other websites
+            else:
+                return f"""  Background:
+    Given I navigate to "{base_url}"
+    And I wait for the page to load completely
+
+  @smoke @search
+  Scenario: Search for {search_term} with valid query
+    When I locate the search input field
+    And I enter "{search_term}" in the search box
+    And I submit the search form
+    Then I should see search results for "{search_term}"
+    And results should be displayed on the page
+
+  @search
+  Scenario: Search with empty query
+    When I locate the search input field
+    And I click the search button without entering any text
+    Then I should see a validation message or all items displayed
+
+  @search @negative
+  Scenario: Search with non-existent {search_term}
+    When I enter "xyznonexistent123{search_term}" in the search box
+    And I submit the search form
+    Then I should see "no results found" or similar message
+
+  @search @filtering
+  Scenario: Search and filter results
+    When I enter "{search_term}" in the search box
+    And I submit the search form
+    And I apply category or price filters
+    Then results should match the applied filters"""
+        
+        # Login/authentication features
+        elif 'login' in feature_lower or 'signin' in feature_lower or 'auth' in feature_lower:
+            return f"""  Background:
+    Given I navigate to "{base_url}"
+
+  @smoke @authentication
+  Scenario: Successful login with valid credentials
+    When I click on the login button
+    And I enter valid email "testuser@example.com"
+    And I enter valid password "Test@123"
+    And I click the submit button
+    Then I should be redirected to the dashboard
+    And I should see a welcome message
+
+  @authentication @negative
+  Scenario: Login with invalid credentials
+    When I click on the login button
+    And I enter email "invalid@example.com"
+    And I enter password "wrongpassword"
+    And I click the submit button
+    Then I should see an error message "Invalid credentials"
+    And I should remain on the login page
+
+  @authentication @validation
+  Scenario: Login with empty fields
+    When I click on the login button
+    And I click the submit button without entering credentials
+    Then I should see validation messages for required fields"""
+        
+        # Registration/signup features
+        elif 'register' in feature_lower or 'signup' in feature_lower or 'sign up' in feature_lower:
+            return f"""  Background:
+    Given I navigate to "{base_url}"
+
+  @smoke @registration
+  Scenario: Successful user registration
+    When I click on the sign up button
+    And I fill in the registration form with valid data
+    And I submit the registration form
+    Then I should see a success message
+    And I should receive a confirmation email
+
+  @registration @validation
+  Scenario: Registration with existing email
+    When I click on the sign up button
+    And I enter an already registered email
+    And I submit the registration form
+    Then I should see an error "Email already exists"
+
+  @registration @validation
+  Scenario: Registration with weak password
+    When I click on the sign up button
+    And I enter a password "123"
+    And I submit the registration form
+    Then I should see a password strength warning"""
+        
+        # Checkout/cart features
+        elif 'checkout' in feature_lower or 'cart' in feature_lower or 'purchase' in feature_lower:
+            return f"""  Background:
+    Given I navigate to "{base_url}"
+    And I add items to cart
+
+  @smoke @checkout
+  Scenario: Complete checkout process
+    When I navigate to the shopping cart
+    And I click on proceed to checkout
+    And I fill in shipping information
+    And I select a payment method
+    And I confirm the order
+    Then I should see an order confirmation
+    And I should receive a confirmation number
+
+  @checkout @validation
+  Scenario: Checkout with empty cart
+    When I clear all items from cart
+    And I try to proceed to checkout
+    Then I should see a message "Your cart is empty"
+
+  @checkout
+  Scenario: Apply coupon code during checkout
+    When I navigate to the shopping cart
+    And I enter a valid coupon code
+    And I click apply
+    Then the discount should be reflected in the total"""
+        
+        # Generic CRUD or form submission
+        else:
+            return f"""  Background:
+    Given I navigate to "{base_url}"
+    And the page loads successfully
+
+  @smoke
+  Scenario: Verify {feature_name.replace('_', ' ')} functionality
+    When I interact with the {feature_name.replace('_', ' ')} feature
+    And I provide valid input data
+    And I submit the form
+    Then the action should complete successfully
+    And I should see a confirmation message
+
+  @validation
+  Scenario: Test {feature_name.replace('_', ' ')} with invalid data
+    When I interact with the {feature_name.replace('_', ' ')} feature
+    And I provide invalid input data
+    And I submit the form
+    Then I should see appropriate validation errors
+
+  @negative
+  Scenario: Test {feature_name.replace('_', ' ')} error handling
+    When I interact with the {feature_name.replace('_', ' ')} feature
+    And I simulate a system error
+    Then I should see a user-friendly error message
+    And the system should handle the error gracefully"""
     
     def _get_default_config(self, context: Dict[str, Any] = None) -> str:
         # Extract URL from context if available

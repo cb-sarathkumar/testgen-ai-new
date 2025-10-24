@@ -7,7 +7,7 @@ from typing import Optional
 
 class Settings:
     # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://testgen:testgen123@localhost:5432/testgen_db")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://testgen:testgen123@localhost:5433/testgen_db")
     
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-super-secret-key-change-this-in-production-make-it-very-long-and-random")

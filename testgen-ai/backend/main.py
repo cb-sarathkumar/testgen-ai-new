@@ -27,7 +27,7 @@ import uvicorn
 from context_aware_generator import ContextAwareTestGenerator, ContextExtractor
 
 # Configuration
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://testgen:testgen123@localhost:5432/testgen_db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://testgen:testgen123@localhost:5433/testgen_db")
 SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-change-this-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
@@ -215,6 +215,10 @@ class TestGenerationResponse(BaseModel):
     generated_files: Dict[str, Any]
     error_message: Optional[str]
     created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True  # Enable ORM mode for Pydantic v2
 
 class IntegrationCreate(BaseModel):
     integration_type: str
@@ -550,7 +554,8 @@ async def create_test_generation(
         status=db_generation.status,
         generated_files=db_generation.generated_files,
         error_message=db_generation.error_message,
-        created_at=db_generation.created_at
+        created_at=db_generation.created_at,
+        updated_at=db_generation.updated_at
     )
 
 async def generate_tests_async(generation_id: int, project: Project, config: dict, user: User, feature_name: str):
@@ -679,7 +684,8 @@ async def get_test_generations(project_id: int, current_user: User = Depends(get
             status=g.status,
             generated_files=g.generated_files,
             error_message=g.error_message,
-            created_at=g.created_at
+            created_at=g.created_at,
+            updated_at=g.updated_at
         )
         for g in generations
     ]
@@ -770,6 +776,28 @@ async def create_integration(
         "created_at": db_integration.created_at
     }
 
+@app.delete("/api/integrations/{integration_id}")
+async def delete_integration(
+    integration_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    # Find the integration
+    result = await db.execute(
+        select(UserIntegration)
+        .where(UserIntegration.id == integration_id, UserIntegration.user_id == current_user.id)
+    )
+    integration = result.scalar_one_or_none()
+    
+    if not integration:
+        raise HTTPException(status_code=404, detail="Integration not found")
+    
+    # Delete the integration
+    await db.delete(integration)
+    await db.commit()
+    
+    return {"message": "Integration deleted successfully"}
+
 # Database initialization
 @app.on_event("startup")
 async def startup_event():
@@ -785,4 +813,4 @@ async def startup_event():
         await create_dummy_user(db)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=9000)
