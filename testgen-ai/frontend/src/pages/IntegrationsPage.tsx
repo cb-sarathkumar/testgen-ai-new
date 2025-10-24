@@ -67,18 +67,26 @@ export default function IntegrationsPage() {
     let credentials = {};
     if (newIntegration.integration_type === 'openai') {
       const apiKey = (e.target as any).api_key?.value;
+      const baseUrl = (e.target as any).base_url?.value;
       if (!apiKey) {
         toast.error('OpenAI API key is required');
         return;
       }
       credentials = { api_key: apiKey };
+      if (baseUrl && baseUrl.trim()) {
+        credentials = { ...credentials, base_url: baseUrl.trim() };
+      }
     } else if (newIntegration.integration_type === 'anthropic') {
       const apiKey = (e.target as any).api_key?.value;
+      const baseUrl = (e.target as any).base_url?.value;
       if (!apiKey) {
         toast.error('Anthropic API key is required');
         return;
       }
       credentials = { api_key: apiKey };
+      if (baseUrl && baseUrl.trim()) {
+        credentials = { ...credentials, base_url: baseUrl.trim() };
+      }
     } else if (newIntegration.integration_type === 'jira') {
       const url = (e.target as any).jira_url?.value;
       const username = (e.target as any).username?.value;
@@ -366,6 +374,13 @@ export default function IntegrationsPage() {
                       name="api_key"
                       required
                     />
+                    <Input
+                      label="Base URL (Optional)"
+                      type="text"
+                      placeholder="https://api.openai.com/v1"
+                      name="base_url"
+                      helperText="Leave empty to use default OpenAI endpoint. Use this for custom ChatGPT wrappers."
+                    />
                     <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                       <div className="flex items-start space-x-2">
                         <Info className="w-4 h-4 text-blue-600 mt-0.5" />
@@ -393,6 +408,13 @@ export default function IntegrationsPage() {
                       placeholder="sk-ant-..."
                       name="api_key"
                       required
+                    />
+                    <Input
+                      label="Base URL (Optional)"
+                      type="text"
+                      placeholder="https://api.anthropic.com"
+                      name="base_url"
+                      helperText="Leave empty to use default Anthropic endpoint. Use this for custom Claude wrappers."
                     />
                     <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
                       <div className="flex items-start space-x-2">

@@ -39,8 +39,22 @@ export default function GenerationPage() {
   });
   const [currentGeneration, setCurrentGeneration] = useState<any>(null);
   const [generatedFiles, setGeneratedFiles] = useState<Record<string, string>>({});
+  const [currentTime, setCurrentTime] = useState(Date.now());
 
   const queryClient = useQueryClient();
+
+  // Update current time every minute to refresh "ago" timestamps
+  // The currentTime state triggers re-renders to update relative timestamps
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 60000); // Update every minute
+
+    return () => clearInterval(interval);
+  }, []);
+  
+  // Suppress unused variable warning - currentTime is used to trigger re-renders
+  void currentTime;
 
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ['project', projectId],

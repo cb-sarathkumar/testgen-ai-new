@@ -77,7 +77,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        if (apiClient.isAuthenticated()) {
+        // Auto-login for development - bypass login
+        if (!apiClient.isAuthenticated()) {
+          console.log('🔓 Auto-logging in for development...');
+          await login('demo@testgen.ai', 'demo123');
+        } else {
           await refreshUser();
         }
       } catch (error) {
